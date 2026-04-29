@@ -46,6 +46,14 @@ enum VPNProcessStatus {
     case connected
 }
 
+private struct GitHubRelease: Decodable {
+    let tagName: String
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+    }
+}
+
 final class FortiVPNApp: NSObject, NSApplicationDelegate {
     private let defaultConfigPath = "\(NSHomeDirectory())/Documents/.fortivpn-config"
     private let configPathDefaultsKey = "configPath"
@@ -171,11 +179,12 @@ final class FortiVPNApp: NSObject, NSApplicationDelegate {
         titleLabel.alignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let versionLabel = NSTextField(labelWithString: "Version \(version)")
-        versionLabel.font = .systemFont(ofSize: 15, weight: .regular)
-        versionLabel.textColor = .secondaryLabelColor
-        versionLabel.alignment = .center
-        versionLabel.translatesAutoresizingMaskIntoConstraints = false
+        let versionButton = NSButton(title: "Version \(version)", target: nil, action: nil)
+        versionButton.isBordered = false
+        versionButton.font = .systemFont(ofSize: 15, weight: .regular)
+        versionButton.contentTintColor = .secondaryLabelColor
+        versionButton.alignment = .center
+        versionButton.translatesAutoresizingMaskIntoConstraints = false
 
         let creatorLabel = NSButton(title: "Created by - Jithen Singh", target: self, action: #selector(openCreatorLink))
         creatorLabel.isBordered = false
@@ -190,16 +199,16 @@ final class FortiVPNApp: NSObject, NSApplicationDelegate {
         closeButton.isHidden = !isAbout
 
         container.addSubview(titleLabel)
-        container.addSubview(versionLabel)
+        container.addSubview(versionButton)
         container.addSubview(creatorLabel)
         container.addSubview(closeButton)
         NSLayoutConstraint.activate([
             titleLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             titleLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor, constant: isAbout ? -44 : -14),
-            versionLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            versionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
+            versionButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            versionButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
             creatorLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            creatorLabel.topAnchor.constraint(equalTo: versionLabel.bottomAnchor, constant: 8),
+            creatorLabel.topAnchor.constraint(equalTo: versionButton.bottomAnchor, constant: 8),
             closeButton.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             closeButton.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -22),
             closeButton.widthAnchor.constraint(equalToConstant: 86)
@@ -209,6 +218,11 @@ final class FortiVPNApp: NSObject, NSApplicationDelegate {
         splashWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        if isAbout {
+            versionButton.title = "Version \(version) (Checking...)"
+            checkLatestRelease(currentVersion: version, versionButton: versionButton)
+        }
 
         guard mode == .launch else { return }
 
@@ -282,6 +296,60 @@ final class FortiVPNApp: NSObject, NSApplicationDelegate {
         if let url = URL(string: "https://github.com/jiriteach/") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    @objc private func openReleasesLink() {
+        if let url = URL(string: "https://github.com/jiriteach/ofvpn/releases") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func checkLatestRelease(currentVersion: String, versionButton: NSButton) {
+        guard let url = URL(string: "https://api.github.com/repos/jiriteach/ofvpn/releases/latest") else {
+            versionButton.title = "Version \(currentVersion) (Unable to Check)"
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("OFVPN", forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { [weak self, weak versionButton] data, response, error in
+            let message: String
+            let updateAvailable: Bool
+
+            if error != nil {
+                message = "Version \(currentVersion) (Unable to Check)"
+                updateAvailable = false
+            } else if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                message = "Version \(currentVersion) (Unable to Check)"
+                updateAvailable = false
+            } else if let data, let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
+                let latestVersion = release.tagName
+                switch Self.compareVersions(currentVersion, latestVersion) {
+                case .orderedAscending:
+                    message = "Version \(currentVersion) (Update Available)"
+                    updateAvailable = true
+                case .orderedSame:
+                    message = "Version \(currentVersion) (Running Latest)"
+                    updateAvailable = false
+                case .orderedDescending:
+                    message = "Version \(currentVersion) (Running Latest)"
+                    updateAvailable = false
+                }
+            } else {
+                message = "Version \(currentVersion) (Unable to Check)"
+                updateAvailable = false
+            }
+
+            DispatchQueue.main.async(execute: {
+                guard let self, self.splashWindow != nil, let versionButton else { return }
+                versionButton.title = message
+                versionButton.target = updateAvailable ? self : nil
+                versionButton.action = updateAvailable ? #selector(self.openReleasesLink) : nil
+                versionButton.contentTintColor = updateAvailable ? .linkColor : .secondaryLabelColor
+            })
+        }.resume()
     }
 
     @objc private func exitApp() {
@@ -576,6 +644,33 @@ final class FortiVPNApp: NSObject, NSApplicationDelegate {
         } catch {
             return (1, error.localizedDescription)
         }
+    }
+
+    private static func compareVersions(_ currentVersion: String, _ latestVersion: String) -> ComparisonResult {
+        let currentComponents = versionComponents(from: currentVersion)
+        let latestComponents = versionComponents(from: latestVersion)
+        let componentCount = max(currentComponents.count, latestComponents.count)
+
+        for index in 0..<componentCount {
+            let current = index < currentComponents.count ? currentComponents[index] : 0
+            let latest = index < latestComponents.count ? latestComponents[index] : 0
+
+            if current < latest {
+                return .orderedAscending
+            }
+
+            if current > latest {
+                return .orderedDescending
+            }
+        }
+
+        return .orderedSame
+    }
+
+    private static func versionComponents(from version: String) -> [Int] {
+        version
+            .split(whereSeparator: { !$0.isNumber })
+            .compactMap { Int($0) }
     }
 
     private static func internalIPv4Addresses() -> [String] {

@@ -150,7 +150,7 @@ For example:
 ## Release Checklist
 
 1. Update the version in `build-app.sh`.
-2. Make sure `Other/applicationIcon.png` exists. The build script converts it into `OFVPN.icns` and includes it in the app bundle.
+2. Make sure `Other/applicationIcon1.png` exists. The build script converts it into `OFVPN.icns` and includes it in the app bundle.
 3. Build the application:
 
 ```sh

@@ -2,12 +2,12 @@
 set -euo pipefail
 
 APP_NAME="OFVPN"
-BUNDLE_DIR=".build/${APP_NAME}.app"
+BUNDLE_DIR="${BUNDLE_DIR:-.build/${APP_NAME}.app}"
 CONTENTS_DIR="${BUNDLE_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
-ICON_SOURCE="Other/applicationIcon.png"
-ICONSET_DIR=".build/OFVPN.iconset"
+ICON_SOURCE="${ICON_SOURCE:-Other/applicationIcon1.png}"
+ICONSET_DIR="${ICONSET_DIR:-.build/OFVPN.iconset}"
 
 swift build -c release
 
@@ -47,9 +47,9 @@ cat > "${CONTENTS_DIR}/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.26</string>
+    <string>1.28</string>
     <key>CFBundleVersion</key>
-    <string>27</string>
+    <string>28</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
