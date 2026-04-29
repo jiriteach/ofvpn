@@ -180,3 +180,7 @@ Use `Check Logs` from the menu bar to open the current log.
 - OFVPN is a GUI wrapper around `openfortivpn`; it does not replace `openfortivpn`.
 - Disconnect is handled by a small root-side watcher started during Connect, so disconnecting does not require a second password prompt.
 - The built app is unsigned. On some Macs, Gatekeeper may require you to right-click and choose Open the first time, or to sign/notarize the app for organization-wide distribution.
+
+## Attribution
+
+Application icon created by Secret Studio - Flaticon - https://www.flaticon.com/free-icon/vpn_5175160?term=vpn&page=1&position=4&origin=search&related_id=5175160
